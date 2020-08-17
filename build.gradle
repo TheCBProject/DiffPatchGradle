@@ -1,0 +1,136 @@
+buildscript {
+    repositories {
+        mavenLocal()
+        jcenter()
+        maven { url 'https://files.minecraftforge.net/maven' }
+    }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:3.+'
+    }
+}
+
+plugins {
+    id 'java'
+    id 'maven-publish'
+}
+
+group 'codechicken'
+archivesBaseName = 'DiffPatchGradle'
+version '1.0.0'
+
+def signProps = [:]
+if (System.getenv("KEY_STORE")) {
+    println "Using Env variables for jar signing."
+    signProps['keyStore'] = System.getenv("KEY_STORE")
+    file(System.getenv("KEY_STORE_PROPS")).withReader {
+        def props = new Properties()
+        props.load(it)
+        signProps.putAll(props)
+    }
+} else if (project.hasProperty('keyStore')) {
+    println "Using Project properties for jar signing."
+    signProps['keyStore'] = project.getProperty('keyStore')
+    signProps['storePass'] = project.getProperty('keyStorePass')
+    signProps['alias'] = project.getProperty('keyStoreAlias')
+    signProps['keyPass'] = project.getProperty('keyStoreKeyPass')
+} else {
+    println 'No signing secrets found, build will not be signed.'
+}
+
+version = "$version." + (System.getenv("BUILD_NUMBER") ?: "1")
+println "Starting build of ${archivesBaseName}, Version: ${version}"
+
+repositories {
+    mavenLocal()
+    jcenter()
+    mavenCentral()
+    maven { url 'https://maven.covers1624.net/' }
+}
+
+dependencies {
+    implementation gradleApi()
+    implementation('codechicken:DiffPatch:1.0.0.+:all') {
+        transitive false
+    }
+}
+
+jar {
+    from file('LICENSE.txt')
+}
+
+task srcJar(type: Jar) {
+    classifier 'sources'
+    from sourceSets.main.allSource
+    from file('LICENSE.txt')
+}
+
+[jar].each { baseTask ->
+    def sTask = "sign${baseTask.name.capitalize()}"
+    baseTask.finalizedBy sTask
+    task "$sTask"(type: net.minecraftforge.gradle.common.task.SignJar) {
+        onlyIf { !signProps.isEmpty() }
+
+        if (!signProps.isEmpty()) {
+            keyStore = signProps.keyStore
+            alias = signProps.alias
+            storePass = signProps.storePass
+            keyPass = signProps.keyPass
+
+            inputFile = baseTask.archivePath
+            outputFile = baseTask.archivePath
+        }
+    }
+}
+
+publishing {
+    repositories {
+        if (System.getenv('MAVEN_PASS')) {
+            maven {
+                url "https://maven-upload.covers1624.net/"
+                credentials {
+                    username 'covers1624'
+                    password System.getenv('MAVEN_PASS')
+                }
+            }
+        }
+    }
+    publications {
+        DiffPatchGradle(MavenPublication) {
+            groupId project.group
+            artifactId project.archivesBaseName
+            version project.version
+            from components['java']
+            artifact srcJar
+
+            pom {
+                name = archivesBaseName
+                description = archivesBaseName
+                //The publish plugin doesnt like GString's here apparently..
+                url = "https://github.com/TheCBProject/${archivesBaseName}".toString()
+                scm {
+                    url = "https://github.com/TheCBProject/${archivesBaseName}".toString()
+                    connection = "scm:git:git://github.com/TheCBProject/${archivesBaseName}.git".toString()
+                    connection = "scm:git:git@github.com:TheCBProject/${archivesBaseName}.git".toString()
+                }
+
+                issueManagement {
+                    system = 'github'
+                    url = "https://github.com/TheCBProject/${archivesBaseName}/issues".toString()
+                }
+                licenses {
+                    license {
+                        name = "MIT"
+                        url = "https://raw.githubusercontent.com/TheCBProject/DiffPatchGradle/master/LICENSE.txt"
+                        distribution = 'repo'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'covers1624'
+                        name = 'covers1624'
+                    }
+                }
+            }
+        }
+    }
+}

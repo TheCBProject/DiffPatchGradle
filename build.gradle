@@ -16,7 +16,7 @@ plugins {
 
 group 'codechicken'
 archivesBaseName = 'DiffPatchGradle'
-version '1.0.0'
+version '1.0.1'
 
 def signProps = [:]
 if (System.getenv("KEY_STORE")) {
@@ -49,7 +49,7 @@ repositories {
 
 dependencies {
     implementation gradleApi()
-    implementation('codechicken:DiffPatch:1.0.0.+:all') {
+    implementation('codechicken:DiffPatch:1.2.0.+:all') {
         transitive false
     }
 }
